@@ -1,0 +1,23 @@
+legion v0.1.0 (Release data: 2021-05-15)
+=======
+
+Changes:
+* Imported ves() and vets() functions from smooth package.
+* We now have explicit lags parameter in ves() and vets().
+* First working version of vets().
+* architectorVETS in vets() - internal function needed for selector.
+* vets() and ves() now support model selection.
+* vets() now has a proper likelihood estimation and implementation of multiplicative error model.
+* ves() now also has a proper MLE.
+* Parameter "silent" can now only be TRUE or FALSE.
+* auto.vets() function, selecting PIC elements via I->P->C.
+* plot() method for ves() and vets(). Currently only produces plots 1 and 4-7.
+* Fixed BICc and AICc for multivariate models.
+* loss="diagonal" now refers to likelihood maximisation, assuming that the series are independent.
+* auto.vets() now starts with the model with loss="diagonal", implying that covariances are all zero.
+* Substituted the parameters "y" with "data".
+* A brief vignette for vets().
+* plot.legion() method now supports all plots.
+* forecast.legion() and related methods is now available.
+* ves() and vets() now work with zoo classes of data.
+* on.exit() restore par for plot functions.
