@@ -3,11 +3,12 @@ knitr::opts_chunk$set(fig.width=6, fig.height=5.5, fig.path='Figs/', fig.show='h
                       warning=FALSE, message=FALSE)
 
 ## ----load_libraries, message=FALSE, warning=FALSE-----------------------------
-require(Mcomp)
 require(legion)
 
 ## ----form_the_vector, message=FALSE, warning=FALSE----------------------------
-Y <- cbind(M3$N2570$x,M3$N2571$x);
+Y <- ts(cbind(1000+0.5*c(1:100)+rnorm(100,0,10),
+              cbind(1000+1.5*c(1:100)+rnorm(100,0,10))),
+        frequency=12);
 
 ## ----vets_basic---------------------------------------------------------------
 vetsModel <- vets(Y, "MMdM", h=18, holdout=TRUE, silent=FALSE)

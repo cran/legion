@@ -4,7 +4,7 @@ utils::globalVariables(c("obsInSample","componentsCommonLevel","componentsCommon
                          "nInitialsLevel","nInitialsSeasonal","nInitialsTrend",
                          "nParametersDamped","nParametersLevel","nParametersSeasonal","nParametersTrend",
                          "parametersCommonDamped","parametersCommonLevel","parametersCommonSeasonal","parametersCommonTrend",
-                         "allowMultiplicative","modelDo","ICsAll","cfObjective",
+                         "allowMultiplicative","modelDo","ICsAll","cfObjective","lossFunction",
                          "yClasses","yForecastStart","yInSampleIndex","yForecastIndex"));
 
 #' Vector ETS-PIC model
@@ -146,6 +146,7 @@ utils::globalVariables(c("obsInSample","componentsCommonLevel","componentsCommon
 #' \item \code{logLik} - The log-likelihood function;
 #' \item \code{lossValue} - The value of the loss function;
 #' \item \code{loss} - The type of the used loss function;
+#' \item \code{lossFunction} - The loss function if the custom was used in the process;
 #' \item \code{accuracy} - the values of the error measures. Currently not available.
 #' \item \code{FI} - Fisher information if user asked for it using \code{FI=TRUE}.
 #' }
@@ -543,14 +544,14 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
             statesNames <- "level";
         }
         else{
-            statesNames <- paste0("level",c(1:nSeries));
+            statesNames <- rep("level",nSeries);
         }
         if(modelIsTrendy){
             if(componentsCommonTrend){
                 statesNames <- c(statesNames,"trend");
             }
             else{
-                statesNames <- c(statesNames,paste0("trend",c(1:nSeries)));
+                statesNames <- c(statesNames,rep("trend",nSeries));
             }
         }
         if(modelIsSeasonal){
@@ -558,13 +559,15 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
                 statesNames <- c(statesNames,"seasonal");
             }
             else{
-                statesNames <- c(statesNames,paste0("seasonal",c(1:nSeries)));
+                statesNames <- c(statesNames,rep("seasonal",nSeries));
             }
         }
+        # Give proper names to all matrices
+        statesNames <- paste0(statesNames,"_",dataNames);
         rownames(matVt) <- statesNames;
         rownames(matF) <- colnames(matF) <- statesNames;
         colnames(matW) <- rownames(matG) <- statesNames;
-        rownames(matW) <- colnames(matG) <- paste0("Series",c(1:nSeries));
+        rownames(matW) <- colnames(matG) <- dataNames;
 
         ### lagsModel vector
         lagsModel <- matrix(1,nComponentsAll,1);
@@ -693,23 +696,23 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
         j <- 0;
         # alpha
         B[1:nParametersLevel] <- 0.1;
-        BLower[1:nParametersLevel] <- -5;
-        BUpper[1:nParametersLevel] <- 5;
+        BLower[1:nParametersLevel] <- switch(bounds,"u"=0,-5);
+        BUpper[1:nParametersLevel] <- switch(bounds,"u"=1,5);
         names(B)[1:nParametersLevel] <- paste0("alpha",c(1:nParametersLevel));
         j[] <- j+nParametersLevel;
         # beta
         if(modelIsTrendy){
             B[j+1:nParametersTrend] <- 0.05;
-            BLower[j+1:nParametersTrend] <- -5;
-            BUpper[j+1:nParametersTrend] <- 5;
+            BLower[j+1:nParametersTrend] <- switch(bounds,"u"=0,-5);
+            BUpper[j+1:nParametersTrend] <- switch(bounds,"u"=1,5);
             names(B)[j+1:nParametersTrend] <- paste0("beta",c(1:nParametersTrend));
             j[] <- j+nParametersTrend;
         }
         # gamma
         if(modelIsSeasonal){
             B[j+1:nParametersSeasonal] <- 0.05;
-            BLower[j+1:nParametersSeasonal] <- -5;
-            BUpper[j+1:nParametersSeasonal] <- 5;
+            BLower[j+1:nParametersSeasonal] <- switch(bounds,"u"=0,-5);
+            BUpper[j+1:nParametersSeasonal] <- switch(bounds,"u"=1,5);
             names(B)[j+1:nParametersSeasonal] <- paste0("gamma",c(1:nParametersSeasonal));
             j[] <- j+nParametersSeasonal;
         }
@@ -812,6 +815,12 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
                                  "A"=dmvnormInternal(fitting$errors, 0, scaleValue, log=TRUE),
                                  "M"=dmvnormInternal(fitting$errors, 0, scaleValue, log=TRUE)-
                                      colSums(log(yInSample))));
+        }
+        # Custom loss
+        else if(loss=="custom"){
+            cfRes <- switch(Etype,
+                            "A"=lossFunction(actual=yInSample,fitted=fitting$yfit,B=B),
+                            "M"=lossFunction(actual=yInSample,fitted=exp(fitting$yfit),B=B));
         }
         else{
             cfRes <- sum(rowSums(fitting$errors^2)) / obsInSample;
@@ -926,7 +935,7 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
         B[] <- res$solution;
 
         # This is just in case something went out of the bounds
-        if(any((B>=BList$BUpper),(B<=BList$BLower))){
+        if(any((B>BList$BUpper),(B<BList$BLower))){
             BList$BUpper[B>=BList$BUpper] <- B[B>=BList$BUpper] + 1;
             BList$BLower[B<=BList$BLower] <- B[B<=BList$BLower] - 1;
         }
@@ -1446,8 +1455,9 @@ vets <- function(data, model="PPP", lags=c(frequency(data)),
                   nParam=parametersNumber, occurrence=ovesModel,
                   data=NA,fitted=yFitted,holdout=yHoldout,residuals=NA,Sigma=Sigma,
                   forecast=yForecast,
-                  ICs=ICs,ICsAll=ICsAll,logLik=logLikVETS,lossValue=cfObjective,loss=loss,accuracy=errorMeasures,
-                  FI=FI);
+                  ICs=ICs,ICsAll=ICsAll,logLik=logLikVETS,
+                  lossValue=cfObjective,loss=loss,lossFunction=lossFunction,
+                  accuracy=errorMeasures,FI=FI);
 
     if(any(yClasses=="ts")){
         model$states <- ts(t(matVt), start=(time(data)[1] - yDeltat*lagsModelMax), frequency=yFrequency)

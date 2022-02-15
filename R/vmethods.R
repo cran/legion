@@ -922,8 +922,13 @@ print.legion <- function(x, ...){
         cat("\n");
     }
 
-    cat("Information criteria:\n");
-    print(round(x$ICs,digits));
+    if(x$loss!="custom"){
+        cat("Information criteria:\n");
+        print(round(x$ICs,digits));
+    }
+    else{
+        cat("Information criteria are not available for the defined loss.\n");
+    }
 
     # if(interval){
     #     if(x$interval=="c"){
@@ -1179,7 +1184,7 @@ outlierdummy.legion <- function(object, level=0.999, type=c("rstandard","rstuden
 }
 
 #### Forecasts ####
-#' @importFrom greybox forecast
+#' @importFrom generics forecast
 #' @importFrom stats qchisq
 #' @export
 forecast.legion <- function(object, h=10, #newdata=NULL, occurrence=NULL,
@@ -1236,6 +1241,9 @@ forecast.legion <- function(object, h=10, #newdata=NULL, occurrence=NULL,
         }
     }
     yNames <- colnames(actuals(object));
+    if(is.null(yNames)){
+        yNames <- paste0("Series",1:nSeries);
+    }
 
     #### Point forecasts ####
     if(any(yClasses=="ts")){
