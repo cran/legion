@@ -273,6 +273,47 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
         }
     }
 
+    # Function to check eigen values for VETS
+    eigenChecker <- function(matF, matW, matG, nComponentsNonSeasonal, nComponentsAll, nComponentsSeasonal, modelIsSeasonal){
+        if(modelIsSeasonal){
+            nonSeasonalIndices <- rep(1:nComponentsNonSeasonal,nSeries) +
+                rep((c(1:nSeries)-1)*nComponentsAll,each=nComponentsNonSeasonal);
+            seasonalIndices <- (1:(nComponentsAll*nSeries))[!(1:(nComponentsAll*nSeries) %in% nonSeasonalIndices)];
+            if(nComponentsAll>10){
+                # The eigenvalues for the non-seasonal part
+                eigenValues <- c(discounter(matF[nonSeasonalIndices,,drop=FALSE][,nonSeasonalIndices,drop=FALSE],
+                                          matW[,nonSeasonalIndices,drop=FALSE],
+                                          matG[nonSeasonalIndices,,drop=FALSE], min(5,floor(nSeries/2))),
+                # The eigenvalues for the seasonal one
+                                 discounter(matF[seasonalIndices,,drop=FALSE][,seasonalIndices,drop=FALSE],
+                                            matW[,seasonalIndices,drop=FALSE],
+                                            matG[seasonalIndices,,drop=FALSE], min(5,floor(nSeries/2))));
+            }
+            else{
+                # The eigenvalues for the non-seasonal part
+                eigenValues <- c(eigen(matF[nonSeasonalIndices,,drop=FALSE][,nonSeasonalIndices,drop=FALSE] -
+                                         matG[nonSeasonalIndices,,drop=FALSE] %*%
+                                           matW[,nonSeasonalIndices,drop=FALSE],
+                                     only.values=TRUE)$values,
+                # The eigenvalues for the seasonal one
+                                 eigen(matF[seasonalIndices,,drop=FALSE][,seasonalIndices,drop=FALSE] -
+                                           matG[seasonalIndices,,drop=FALSE] %*%
+                                           matW[,seasonalIndices,drop=FALSE],
+                                       only.values=TRUE)$values)
+            }
+        }
+        else{
+            if(nComponentsAll>10){
+                # The eigenvalues for the non-seasonal part
+                eigenValues <- discounter(matF, matW, matG, min(5,floor(nSeries/2)));
+            }
+            else{
+                eigenValues <- eigen(matF - matG %*% matW, only.values=TRUE)$values;
+            }
+        }
+        return(eigenValues);
+    }
+
     ##### Cost Function for VES #####
     CF <- function(B, loss="likelihood", Etype="A", Ttype="N", damped=FALSE,
                    nComponentsNonSeasonal, nComponentsAll, lagsModelMax){
@@ -282,7 +323,16 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
         # Check the bounds
         # Edit KFP: change symmetric to FALSE
         if(bounds=="a"){
-            eigenValues <- eigen(elements$matF - elements$matG %*% elements$matW, only.values=TRUE, symmetric=FALSE)$values;
+            # eigenValues <- eigen(elements$matF - elements$matG %*% elements$matW, only.values=TRUE, symmetric=FALSE)$values;
+            # if(nComponentsAll>10){
+            #     eigenValues <- discounter(elements$matF, elements$matW, elements$matG, 5);
+            # }
+            # else{
+            #     eigenValues <- eigen(elements$matF - elements$matG %*% elements$matW, only.values=TRUE)$values;
+            # }
+            eigenValues <- eigenChecker(elements$matF, elements$matW, elements$matG,
+                                        nComponentsNonSeasonal, nComponentsAll,
+                                        nComponentsSeasonal, modelIsSeasonal);
             if(max(abs(eigenValues)>(1 + 1E-50))){
                 return(max(abs(eigenValues))*1E+100);
             }
@@ -290,7 +340,8 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
 
         # Fit the model
         fitting <- vFitterWrap(switch(Etype, "M"=log(yInSample), yInSample),
-                               elements$matVt, elements$matF, elements$matW, elements$matG,
+                               elements$matVt, Matrix(elements$matF, sparse=TRUE),
+                               Matrix(elements$matW, sparse=TRUE), Matrix(elements$matG, sparse=TRUE),
                                lagsModel, Etype, Ttype, Stype, ot);
 
         # Calculate the loss
@@ -620,10 +671,10 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
 
         ### Persistence matrix
         matG <- switch(seasonalType,
-                       "i" =  matrix(0,nSeries*nComponentsAll,nSeries),
-                       "c" = matrix(0,nSeries*nComponentsNonSeasonal+1,nSeries));
+                       "i" =  Matrix(0, nSeries*nComponentsAll, nSeries, sparse=TRUE),
+                       "c" = Matrix(0, nSeries*nComponentsNonSeasonal+1, nSeries, sparse=TRUE));
         if(!persistenceEstimate){
-            matG <- persistenceValue;
+            matG <- Matrix(persistenceValue, sparse=TRUE);
         }
 
         ### Damping parameter
@@ -664,17 +715,17 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
                                 setdiff(c(1:nSeries*nComponentsAll),c(1:nComponentsAll)+nComponentsAll*(i-1))] <- 0.1;
             }
         }
-        matF <- switch(seasonalType,
-                       "i"=transitionValue,
-                       "c"=rbind(cbind(transitionValue[-(c(1:nSeries)*nComponentsAll),
-                                                       -(c(1:nSeries)*nComponentsAll)],
-                                       0),
-                                 c(transitionValue[nComponentsAll*nSeries,
-                                                   -(c(1:nSeries)*nComponentsAll)],1)));
+        matF <- Matrix(switch(seasonalType,
+                              "i"=transitionValue,
+                              "c"=rbind(cbind(transitionValue[-(c(1:nSeries)*nComponentsAll),
+                                                              -(c(1:nSeries)*nComponentsAll)],
+                                              0),
+                                        c(transitionValue[nComponentsAll*nSeries,
+                                                          -(c(1:nSeries)*nComponentsAll)],1))), sparse=TRUE);
 
         ### Measurement matrix
         if(seasonalType=="i"){
-            matW <- matrix(0,nSeries,nSeries*nComponentsAll);
+            matW <- Matrix(0, nSeries, nSeries*nComponentsAll, sparse=TRUE);
             for(i in 1:nSeries){
                 matW[i,c(1:nComponentsAll)+nComponentsAll*(i-1)] <- 1;
             }
@@ -685,7 +736,7 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
             }
         }
         else{
-            matW <- matrix(0,nSeries,nSeries*nComponentsNonSeasonal+1);
+            matW <- Matrix(0, nSeries, nSeries*nComponentsNonSeasonal+1, sparse=TRUE);
             for(i in 1:nSeries){
                 matW[i,c(1:nComponentsNonSeasonal)+nComponentsNonSeasonal*(i-1)] <- 1;
             }
@@ -1606,12 +1657,13 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
     }
 
     ##### Print output #####
-    if(!silent){
-        if(any(abs(eigen(matF - matG %*% matW)$values)>(1 + 1E-10))){
-            warning(paste0("Model VES(",model,") is unstable! ",
-                           "Use a different value of 'bounds' parameter to address this issue!"),
-                    call.=FALSE);
-        }
+    eigenValues <- eigenChecker(matF, matW, matG,
+                                nComponentsNonSeasonal, nComponentsAll,
+                                nComponentsSeasonal, modelIsSeasonal)
+    if(any(abs(silent)>(1 + 1E-10))){
+        warning(paste0("Model VES(",model,") is unstable! ",
+                       "Use a different value of 'bounds' parameter to address this issue!"),
+                call.=FALSE);
     }
 
     ##### Make a plot #####
@@ -1668,8 +1720,8 @@ ves <- function(data, model="PPP", lags=c(frequency(data)),
 
     ##### Return values #####
     model <- list(model=modelname,timeElapsed=Sys.time()-startTime,
-                  states=NA,persistence=persistenceValue,transition=transitionValue,
-                  measurement=matW, phi=dampedValue, B=B,
+                  states=NA,persistence=as.matrix(persistenceValue),transition=as.matrix(transitionValue),
+                  measurement=as.matrix(matW), phi=dampedValue, B=B,
                   lagsAll=lagsModel,
                   initialType=initialType,initial=initialValue,initialSeason=initialSeasonValue,
                   nParam=parametersNumber, imodel=ovesModel,

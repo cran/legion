@@ -12,11 +12,10 @@
 #' }
 #'
 #' @name legion
-#' @docType package
-#' @author Ivan Svetunkov
+#' @aliases legion-package
+#' @template ssAuthor
 #' @author Kandrika Pritularga
 #'
-#' Maintainer: Ivan Svetunkov <ivan@svetunkov.ru>
 #' @seealso \code{\link[generics]{forecast}, \link[smooth]{es}, \link[smooth]{adam}}
 #'
 #' @template vssGeneralRef
@@ -36,6 +35,4 @@
 #' @importFrom utils packageVersion
 #' @useDynLib legion
 NULL
-
-
 

@@ -230,12 +230,12 @@ vignette: \code{vignette("vets","legion")}
 Y <- ts(cbind(rnorm(100,100,10),rnorm(100,75,8)),frequency=12)
 
 # The simplest model applied to the data with the default values
-vets(Y,model="ANN",h=10,holdout=TRUE)
+\donttest{vets(Y,model="ANN",h=10,holdout=TRUE)}
 
 # Multiplicative damped trend model with common parameters
 # and initial seasonal indices
-vets(Y,model="MMdM",h=10,holdout=TRUE,parameters=c("l","t","s","d"),
-     initials="seasonal")
+\donttest{vets(Y,model="MMdM",h=10,holdout=TRUE,parameters=c("l","t","s","d"),
+     initials="seasonal")}
 
 # Automatic selection of ETS components
 \donttest{vets(Y, model="PPP", h=10, holdout=TRUE, initials="seasonal")}
@@ -253,16 +253,17 @@ Springer-Verlag.
 Analysis. New introduction to Multiple Time Series Analysis. Berlin,
 Heidelberg: Springer Berlin Heidelberg.
 \doi{10.1007/978-3-540-27752-1}
-\item Chen H., Svetunkov I., Boylan J. (2021). A New Taxonomy for
-Vector Exponential Smoothing and Its Application to Seasonal Time
-Series.
+\item Svetunkov, I., Chen, H., & Boylan, J. E. (2023).
+A new taxonomy for vector exponential smoothing and its application
+to seasonal time series. European Journal of Operational Research,
+304(3), 964–980. \doi{10.1016/j.ejor.2022.04.040}
 }
 }
 \seealso{
 \code{\link[legion]{ves}, \link[smooth]{es}, \link[smooth]{adam}}
 }
 \author{
-Ivan Svetunkov, \email{ivan@svetunkov.ru}
+Ivan Svetunkov, \email{ivan@svetunkov.com}
 }
 \keyword{models}
 \keyword{multivariate}
